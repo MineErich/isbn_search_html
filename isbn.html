@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<!--
+Based on a python script by AO8: https://gist.github.com/AO8/faa3f52d3d5eac63820cfa7ec2b24aa7
+
+Be aware: this is using the google books api.
+
+I just needed this for looking up ISBNs collected by an android app.
+
+-->
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fetch ISBN-details</title>
+    <style>
+        #isbntable {
+        font-family: Arial, Helvetica, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+        }
+
+        #isbntable td, #isbntable th {
+        border: 1px solid #ddd;
+        padding: 8px;
+        }
+
+        #isbntable tr:nth-child(even){background-color: #f2f2f2;}
+
+        #isbntable tr:hover {background-color: #ddd;}
+
+        #isbntable th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #04AA6D;
+        color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Input ISBNs</h1>
+    <textarea id="isbn-input" rows="10" cols="30" placeholder="Input ISBNs, 1 each line..."></textarea>
+    <br>
+    <button onclick="fetchBookDetails()">fetch details</button>
+    <h2>Ergebnisse</h2>
+    <table id="isbntable">
+        <tr>
+            <th>ISBN</th>
+            <th>Title</th>
+            <th>Author(s)</th>
+            <th>Page Count</th>
+            <th>Language</th>
+            <th>count</th>
+        </tr>
+        <tbody id="tcontent"></tbody>
+    </table>
+    <p>notice: "count" will list if you inserted a ISBN more than one time.</p>
+    <hr>
+    <h3>CSV-ish format</h3>
+    <pre id="output"></pre>
+    <script>
+        async function fetchBookDetails() {
+            const input = document.getElementById('isbn-input').value;
+            const output = document.getElementById('output');
+            const isbns = input.split('\n').map(isbn => isbn.trim()).filter(isbn => isbn);
+            let csvOutput = 'ISBN,Title,Author(s),Page Count,Language\n';
+            const table = document.getElementById("tcontent");
+
+            for (const isbn of isbns) {
+                var skip = 0;
+                for (var i = 0, irow; irow = table.rows[i]; i++) {
+                    if (isbn == irow.cells[0].innerHTML) {
+                        irow.cells[5].innerHTML = Number(irow.cells[5].innerHTML) + 1;
+                        skip = 1;
+                    }
+                }
+                if (skip == 0) {
+                    let row = table.insertRow();
+                    try {
+                        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+                        const data = await response.json();
+
+                        if (data.totalItems > 0) {
+                            const book = data.items[0].volumeInfo;
+                            const title = book.title || '?';
+                            const authors = book.authors ? book.authors.join('; ') : '?';
+                            const pageCount = book.pageCount || '?';
+                            const language = book.language || '?';
+
+                            csvOutput += `${isbn},${title},${authors},${pageCount},${language}\n`;
+                            row.insertCell(0).innerHTML = isbn;
+                            row.insertCell(1).innerHTML = title;
+                            row.insertCell(2).innerHTML = authors;
+                            row.insertCell(3).innerHTML = pageCount;
+                            row.insertCell(4).innerHTML = language;
+                            row.insertCell(5).innerHTML = 1;
+
+                        } else {
+                            csvOutput += `No data found for ISBN ${isbn}\n`;
+                            row.insertCell(0).innerHTML = isbn;
+                            row.insertCell(1).innerHTML = "error";
+                            row.insertCell(2).innerHTML = "error";
+                            row.insertCell(3).innerHTML = "error";
+                            row.insertCell(4).innerHTML = "error";
+                            row.insertCell(5).innerHTML = 1;
+                        }
+                    } catch (error) {
+                        csvOutput += `Error fetching data for ISBN ${isbn}\n`;
+                        row.insertCell(0).innerHTML = isbn;
+                        row.insertCell(1).innerHTML = "error";
+                        row.insertCell(2).innerHTML = "error";
+                        row.insertCell(3).innerHTML = "error";
+                        row.insertCell(4).innerHTML = "error";
+                        row.insertCell(5).innerHTML = 1;
+                    }
+                }
+            }
+
+            for (var j = 0, jrow; jrow = table.rows[j]; j++) {
+                jrow.cells[0].innerHTML = "<a href=\"https://isbnsearch.org/isbn/"+jrow.cells[0].innerHTML+"\" target=\"_blank\">"+jrow.cells[0].innerHTML+"</a>";
+            }
+
+            output.textContent = csvOutput;
+        }
+    </script>
+</body>
+</html>
